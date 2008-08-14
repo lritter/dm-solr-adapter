@@ -1,7 +1,7 @@
 require 'rubygems'
 gem 'dm-core', '>=0.9.2'
 require 'dm-core'
-gem 'solr', '>=0.0.6'
+gem 'solr-ruby', '>=0.0.6'
 require 'solr'
 
 module DataMapper
@@ -11,14 +11,9 @@ module DataMapper
       inferred_fields = {:type => solr_type_name}
       return Solr::Document.new(property_list.inject(inferred_fields) do |accumulator, property|
         if(value = instance_variable_get(property.instance_variable_name))
-          if value.kind_of?(Date) #|| value.is_a?(Date)
-            value = value.strftime('%Y-%m-%dT%H:%M:%S')+"Z"
+          if value.kind_of?(Date) 
+            value = value.strftime('%Y-%m-%dT%H:%M:%SZ')
           end
-          
-          # if value.kind_of?(Date)
-          #   puts "hello"
-          #   value = value.strftime('%FT%TZ')   
-          # end
           
           accumulator[property.field] = value
         end
