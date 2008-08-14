@@ -1,6 +1,7 @@
 require 'rubygems'
 gem 'dm-core', '>=0.9.2'
 require 'dm-core'
+gem 'solr', '>=0.0.6'
 require 'solr'
 
 module DataMapper
