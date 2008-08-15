@@ -60,6 +60,12 @@ describe DataMapper::Adapters::SolrAdapter do
     desk.content.should eql("this is a test")
   end
   
+  it "should set the score for retrieved objects" do
+    Desk.new(:id => 2, :content => "this is a test").save
+    desk = Desk.get(2)
+    desk.score.should > 0
+  end
+  
   it "should destroy a record" do
     Desk.new(:id => "to_be_destroyed", :content => "this is a test").save
     desk = Desk.get!("to_be_destroyed")
@@ -91,6 +97,16 @@ describe DataMapper::Adapters::SolrAdapter do
       desk = desk_map[i.to_s]
       desk.id.should eql(i.to_s)
       desk.content.should eql("I am #{i}")
+    end
+  end
+  
+  it "should set score for all retrieved models" do
+    delete_all_desks
+    num_to_create = 5
+    num_to_create.times { |i| Desk.new(:id => i, :content => "I am #{i}").save}
+    all_desks = Desk.all
+    all_desks.each do |desk|
+      desk.score.should > 0
     end
   end
   
@@ -190,6 +206,15 @@ describe DataMapper::Adapters::SolrAdapter do
     got_time = Desk.get!(desk.id).created_at
     got = Desk.get!(desk.id).created_at.strftime.gsub(got_time.zone,'')
     got.should eql(time.strftime.gsub(time.zone,''))
+  end
+  
+  it "should allow direct solr searching" do
+    delete_all_desks
+    Desk.new(:id => "peep", :content => "little bo peep fell of his sheep").save
+    Desk.new(:id => "jack", :content => "jack and jill went up the hill").save
+    Desk.new(:id => "jack_sprat", :content => "jack sprat could eat no fat").save
+    desks = Desk.search_by_solr('+jack')
+    desks.size.should == 2
   end
   
 end
