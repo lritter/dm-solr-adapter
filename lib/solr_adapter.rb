@@ -47,17 +47,7 @@ module DataMapper
         results = with_connection do |connection|
           connection.query(*build_request(query))
         end
-        
-        Collection.new(query) do |collection|
-          results.hits.each do |data|
-            collection.load(
-              query.fields.map { |property| 
-                property.typecast(data[property.field.to_s])
-              }
-            )
-          end
-        end
-        
+        convert_solr_results_to_collection(query, results)
       end
 
       def read_one(query)
@@ -67,10 +57,11 @@ module DataMapper
         end
         unless(results.total_hits == 0)
           data = results.hits.first
-          query.model.load(query.fields.map { |property| 
-            # puts "Prop: #{property.field.to_s} Type: #{property.type} Value: #{property.typecast(data[property.field.to_s]).to_s}" 
+          resource = query.model.load(query.fields.map { |property| 
             property.typecast(data[property.field.to_s]) 
           }, query)
+          set_solr_score_from_solr_result(resource, data)
+          resource
         end
       end
 
@@ -188,6 +179,44 @@ module DataMapper
       def destroy_connection(connection)
         connection = nil
       end
+      
+      def convert_solr_results_to_collection(query, results)
+        Collection.new(query) do |collection|
+          results.hits.each do |data|
+            resource = collection.load(
+              query.fields.map { |property| property.typecast(data[property.field.to_s]) }
+            )
+            set_solr_score_from_solr_result(resource, data)
+            resource
+          end
+        end
+      end
+      
+      def set_solr_score_from_solr_result(resource, solr_data)
+        resource.instance_eval "def score; #{solr_data['score']}; end"
+      end
+      
+    end
+  end
+
+  module Model
+    
+    def solr_type_name
+      name.downcase
+    end
+    
+    def solr_type_restriction
+      "+type:#{solr_type_name}"
+    end
+    
+    def search_by_solr(query)
+      repository = repository(default_repository_name)
+      query = "#{solr_type_restriction} #{query}"
+      
+      results = repository.adapter.send(:with_connection) do |connection|
+        connection.query(query)
+      end
+      repository.adapter.send(:convert_solr_results_to_collection, Query.new(repository, self), results)
       
     end
   end
