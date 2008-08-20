@@ -285,6 +285,37 @@
    <dynamicField name="*_f"  type="sfloat"  indexed="true"  stored="true"/>
    <dynamicField name="*_d"  type="sdouble" indexed="true"  stored="true"/>
    <dynamicField name="*_dt" type="date"    indexed="true"  stored="true"/>
+   
+   <!-- Fields to be stored but not indexed -->
+   <dynamicField name="*_i_ni"  type="sint"    indexed="false"  stored="true"/>
+   <dynamicField name="*_s_ni"  type="string"  indexed="false"  stored="true"/>
+   <dynamicField name="*_l_ni"  type="slong"   indexed="false"  stored="true"/>
+   <dynamicField name="*_t_ni"  type="text"    indexed="false"  stored="true"/>
+   <dynamicField name="*_b_ni"  type="boolean" indexed="false"  stored="true"/>
+   <dynamicField name="*_f_ni"  type="sfloat"  indexed="false"  stored="true"/>
+   <dynamicField name="*_d_ni"  type="sdouble" indexed="false"  stored="true"/>
+   <dynamicField name="*_dt_ni" type="date"    indexed="false"  stored="true"/>
+
+   <!-- Fields to be indexed but not stored -->
+   <dynamicField name="*_i_ns"  type="sint"    indexed="true"  stored="false"/>
+   <dynamicField name="*_s_ns"  type="string"  indexed="true"  stored="false"/>
+   <dynamicField name="*_l_ns"  type="slong"   indexed="true"  stored="false"/>
+   <dynamicField name="*_t_ns"  type="text"    indexed="true"  stored="false"/>
+   <dynamicField name="*_b_ns"  type="boolean" indexed="true"  stored="false"/>
+   <dynamicField name="*_f_ns"  type="sfloat"  indexed="true"  stored="false"/>
+   <dynamicField name="*_d_ns"  type="sdouble" indexed="true"  stored="false"/>
+   <dynamicField name="*_dt_ns" type="date"    indexed="true"  stored="false"/>
+
+   <!-- Fields to be neither indexed nor stored -->
+   <dynamicField name="*_i_ni_ns"  type="sint"    indexed="false"  stored="false"/>
+   <dynamicField name="*_s_ni_ns"  type="string"  indexed="false"  stored="false"/>
+   <dynamicField name="*_l_ni_ns"  type="slong"   indexed="false"  stored="false"/>
+   <dynamicField name="*_t_ni_ns"  type="text"    indexed="false"  stored="false"/>
+   <dynamicField name="*_b_ni_ns"  type="boolean" indexed="false"  stored="false"/>
+   <dynamicField name="*_f_ni_ns"  type="sfloat"  indexed="false"  stored="false"/>
+   <dynamicField name="*_d_ni_ns"  type="sdouble" indexed="false"  stored="false"/>
+   <dynamicField name="*_dt_ni_ns" type="date"    indexed="false"  stored="false"/>
+
 
    <dynamicField name="random*" type="random" />
 
