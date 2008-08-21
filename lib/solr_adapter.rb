@@ -10,12 +10,19 @@ module DataMapper
       property_list = self.class.properties.select { |key, value| dirty ? self.dirty_attributes.key?(key) : true }
       inferred_fields = {:type => solr_type_name}
       return Solr::Document.new(property_list.inject(inferred_fields) do |accumulator, property|
-        if(value = instance_variable_get(property.instance_variable_name))
-          if value.kind_of?(Date) 
-            value = value.strftime('%Y-%m-%dT%H:%M:%SZ')
+        if(value = attribute_get(property.name))
+          cast_value = value
+          if(property.type.respond_to?(:dump))
+            cast_value = property.type.dump(value, property)
           end
           
-          accumulator[property.field] = value
+          if value.kind_of?(Date) 
+            cast_value = value.strftime('%Y-%m-%dT%H:%M:%SZ')
+          end
+          
+          # puts "Cast #{property.name}:#{property.type} from '#{value.inspect}' to '#{cast_value.inspect}'"
+          
+          accumulator[property.field] = cast_value
         end
         accumulator
       end)
@@ -26,7 +33,45 @@ module DataMapper
       self.class.name.downcase
     end
   end
+
 end
+
+module DataMapper
+  module Types
+    class RealYaml < DataMapper::Type
+      primitive String
+      size 65535
+      lazy true
+
+      def self.load(value, property)
+        if value.nil?
+          nil
+        elsif value.is_a?(String)
+          ::YAML.load(value)
+        else
+          raise ArgumentError.new("+value+ must be nil or a String")
+        end
+      end
+
+      def self.dump(value, property)
+        if value.nil?
+          nil
+        elsif value.is_a?(String) && value =~ /^---/
+          value
+        else
+          ::YAML.dump(value)
+        end
+      end
+
+      def self.typecast(value, property)
+        # No typecasting; leave values exactly as they're provided.
+        dump(value,property)
+      end
+    end # class Yaml
+  end # module Types
+end # module DataMapper
+
+
 
 module DataMapper
   module Adapters
