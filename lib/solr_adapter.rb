@@ -4,6 +4,9 @@ require 'dm-core'
 gem 'solr-ruby', '>=0.0.6'
 require 'solr'
 
+# (lritter 21/08/2008 15:15): TODO Make :serial => true properties that are empty get a UUID?  hmm.  type-wise
+# this might not work out.
+
 module DataMapper
   module Resource
     def to_solr_document(dirty=false)
@@ -35,43 +38,6 @@ module DataMapper
   end
 
 end
-
-module DataMapper
-  module Types
-    class RealYaml < DataMapper::Type
-      primitive String
-      size 65535
-      lazy true
-
-      def self.load(value, property)
-        if value.nil?
-          nil
-        elsif value.is_a?(String)
-          ::YAML.load(value)
-        else
-          raise ArgumentError.new("+value+ must be nil or a String")
-        end
-      end
-
-      def self.dump(value, property)
-        if value.nil?
-          nil
-        elsif value.is_a?(String) && value =~ /^---/
-          value
-        else
-          ::YAML.dump(value)
-        end
-      end
-
-      def self.typecast(value, property)
-        # No typecasting; leave values exactly as they're provided.
-        dump(value,property)
-      end
-    end # class Yaml
-  end # module Types
-end # module DataMapper
-
-
 
 module DataMapper
   module Adapters
@@ -254,15 +220,21 @@ module DataMapper
       "+type:#{solr_type_name}"
     end
     
-    def search_by_solr(query)
+    def search_by_solr(query, options={})
       repository = repository(default_repository_name)
       query = "#{solr_type_restriction} #{query}"
       
       results = repository.adapter.send(:with_connection) do |connection|
-        connection.query(query)
+        connection.query(query, options)
       end
       repository.adapter.send(:convert_solr_results_to_collection, Query.new(repository, self), results)
-      
     end
+    
+    def random_set(size=10)
+      search_by_solr('', {:sort => [{"random_#{rand(9999)}".to_sym => :ascending}], :rows => size})
+    end
+    
+    private
+    # property :random, Integer, :accessor => :private
   end
 end
