@@ -220,8 +220,10 @@ module DataMapper
       "+type:#{solr_type_name}"
     end
     
-    def search_by_solr(query, options={})
+    def search_by_solr(*args)
       repository = repository(default_repository_name)
+      options = args.last.is_a?(Hash) ? args.pop : {}
+      query = args.shift || ''
       query = "#{solr_type_restriction} #{query}"
       
       results = repository.adapter.send(:with_connection) do |connection|
@@ -230,8 +232,11 @@ module DataMapper
       repository.adapter.send(:convert_solr_results_to_collection, Query.new(repository, self), results)
     end
     
-    def random_set(size=10)
-      search_by_solr('', {:sort => [{"random_#{rand(9999)}".to_sym => :ascending}], :rows => size})
+    def random_set(*args)
+      options = args.last.is_a?(Hash) ? args.pop : {}
+      query = args.shift || ''
+      options.merge!({:sort => [{"random_#{rand(9999)}".to_sym => :ascending}]})
+      search_by_solr(query, options)
     end
     
     private

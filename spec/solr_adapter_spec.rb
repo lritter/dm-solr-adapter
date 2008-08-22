@@ -243,7 +243,7 @@ describe DataMapper::Adapters::SolrAdapter do
   it "should be able to select random results" do
     num_to_create = 5
     num_to_create.times { |i| Desk.new(:id => i, :content => "I am #{i}").save}
-    set_1 = Desk.random_set(2)
+    set_1 = Desk.random_set(:rows => 2)
     set_1.size.should == 2
   end
   
