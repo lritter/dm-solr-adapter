@@ -121,7 +121,6 @@ module DataMapper
           adapter, user, password, host, port, index, query, nil
         )
         
-        
         return normalized
       end
       
@@ -161,14 +160,15 @@ module DataMapper
       end
       
       def solr_commit
-        with_connection { |c| c.commit }
+        with_connection(false) { |c| c.commit }
       end
       
-      def with_connection(&block)
+      def with_connection(autocommit = true, &block)
         connection = nil
         begin
           connection = create_connection
           result = block.call(connection)
+          solr_commit if autocommit
           return result
         rescue => e
           # (lritter 12/08/2008 16:48): Loggger?
@@ -183,7 +183,7 @@ module DataMapper
       def create_connection
         connect_to = uri.dup 
         connect_to.scheme = 'http'
-        Solr::Connection.new(connect_to.to_s, :autocommit => :on)
+        Solr::Connection.new(connect_to.to_s, :autocommit => :off)
       end
       
       def destroy_connection(connection)
