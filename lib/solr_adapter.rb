@@ -123,13 +123,15 @@ module DataMapper
         
         return normalized
       end
-      
+
+      # (lritter 27/08/2008 13:39): will only return up to 100000 records...
+      # it does not seem possible to tell solr to return all records.      
       def build_request(query, options={})
         # puts query.inspect
         query_fragments = []
         query_fragments << "+type:#{query.model.name.downcase}" # (lritter 13/08/2008 09:54): This should be be factored into a method
         
-        options.merge!(:rows => query.limit) if query.limit
+        options.merge!(:rows => (query.limit || 100000))
         options.merge!(:start => query.offset) if query.offset
         
         query_fragments += query.conditions.map { |operator, property, value|
@@ -206,11 +208,13 @@ module DataMapper
         resource.instance_eval "def score; #{solr_data['score']}; end"
       end
       
+      def log
+        $stderr
+      end
     end
   end
 
   module Model
-    
     def solr_type_name
       name.downcase
     end
@@ -238,7 +242,96 @@ module DataMapper
       search_by_solr(query, options)
     end
     
-    private
-    # property :random, Integer, :accessor => :private
+    def create_many(enumerable, options = {}, &factory)
+      options[:factory] = factory
+      in_batches(enumerable, options) do |batch|
+        repository.adapter.create(batch)
+      end
+    end
+    
+    def in_batches(enumerable, options = {}, &batch_operation)
+      raise "Batch operation must be specified" unless batch_operation
+      default_options = { 
+        :batch_size => 100,
+        :factory => lambda {|x| x},
+        :continue_on_errors => true
+      }
+      options = default_options.merge(options)
+      
+      factory = options[:factory]
+      batch_size = options[:batch_size]
+      continue_on_errors = options[:continue_on_errors]
+      inputs_that_could_not_be_loaded = []
+      items_that_could_not_be_created = []
+      batch = []
+      
+      enumerable.each_with_index do |input, record_number|
+        current_batch = record_number/batch_size
+        
+        # log.puts "Item: #{input}"
+        
+        begin # Try and load this input and add it to the batch
+          processed_item = factory.call(input)
+          batch << processed_item if processed_item
+        rescue => e
+          throw e unless continue_on_errors
+          inputs_that_could_not_be_loaded << input
+          log.puts "Could not load input: #{input.inspect}"
+          log.puts e.to_s
+          log.puts e.backtrace.join("\n")
+        end
+        
+        if batch_size <= batch.size # Time to commit this batch
+          (items_that_could_not_be_created += with_batch(batch, !continue_on_errors, &batch_operation)) and (batch = [])
+        end
+      end
+      
+      unless batch.empty?
+        (items_that_could_not_be_created += with_batch(batch, !continue_on_errors, &batch_operation)) and (batch = [])
+        # items_that_could_not_be_created += with_batch(batch, !continue_on_errors, &batch_operation) 
+      end
+      
+      if !items_that_could_not_be_created.empty? 
+        problem_outputs = []
+        if 1 < batch_size
+          recursive_options = options.dup
+          recursive_options[:batch_size] = recursive_options[:batch_size]/2
+          recursive_options[:factory] = lambda {|x| x}
+          problem_outputs = in_batches(items_that_could_not_be_created, recursive_options, &batch_operation)
+        else
+          items_that_could_not_be_created.each do |item|
+            problem_outputs += with_batch([item], !continue_on_errors, &batch_operation)
+          end
+        end
+      end
+      
+      problem_outputs
+    end
+    
+    protected
+    
+    def log
+      repository.adapter.send(:log)
+    end
+    
+    def with_batch(batch, noisy = true, &op)
+      outputs_that_could_not_be_created = []
+      begin # try and add the batch
+        # log.print "Doing: #{batch.inspect}..."
+        op.call(batch)
+        repository.adapter.send(:solr_commit)
+        # log.puts "Done"
+      rescue => e
+        throw e if noisy
+        outputs_that_could_not_be_created += batch
+        log.puts e.to_s
+        log.puts e.backtrace.join("\n")
+      ensure
+        batch = []
+      end
+      # puts "Sending back: #{outputs_that_could_not_be_created.inspect}"
+      return outputs_that_could_not_be_created
+    end
+
   end
 end

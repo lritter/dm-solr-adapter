@@ -1,11 +1,13 @@
 require 'spec'
 require 'pathname'
 require Pathname(__FILE__).dirname.parent.expand_path + 'lib/solr_adapter'
+require 'generator'
 
 require 'dm-types'
 require 'ostruct'
 require 'yaml'
 require 'facets/hash/symbolize_keys'
+
 
 configuration = YAML.load(<<-END_YAML
 ---
@@ -90,7 +92,6 @@ describe DataMapper::Adapters::SolrAdapter do
   end
   
   it "should properly update records" do
-  
     desk = Desk.new(:id => "to_be_updated", :content => "this is a test", :width => 5)
     desk.save
     desk = Desk.get("to_be_updated")
@@ -271,6 +272,72 @@ describe DataMapper::Adapters::SolrAdapter do
     DataMapper::Repository.adapters[:default].send(:with_connection, true) do |c|
       nil
     end
+  end
+  
+  def generator(size)
+    Generator.new { |g|
+      for i in 1..size
+        g.yield i
+      end
+    }
+  end
+  
+  it "should allow the creation of many records in batches" do
+    delete_all_desks
+    num_to_create = 23
+    batch_size = 3
+    g = generator(num_to_create)
+    
+    Desk.create_many(g, :batch_size => batch_size) {|x| Desk.new(:id => x)}
+    Desk.all.size.should == num_to_create
+  end
+
+  it "should perform the right number of operation for batched requests" do
+    num_to_create = 23
+    batch_size = 3
+    g = generator(num_to_create)
+  
+    Desk.in_batches(g, :batch_size => batch_size, :factory => lambda {|x| Desk.new(:id => x)}) do |batch|
+      Desk.repository.adapter.create(batch)
+    end
+  end
+  
+  it "should return items that were caused batches to fail" do
+    num_to_create = 23
+    batch_size = 3
+    g = generator(num_to_create)
+    factory = lambda do |x|
+      if(x % 7 == 0)
+        Desk.new
+      else
+        Desk.new(:id => x)
+      end
+    end
+    
+    bad_records = Desk.in_batches(g, :batch_size => batch_size, :factory => factory) do |batch|
+      Desk.repository.adapter.create(batch)
+    end
+    
+    bad_records.size.should == num_to_create/7
+  end
+  
+  it "should raise exceptions in batch operations if told to do so" do
+    num_to_create = 23
+    batch_size = 3
+    g = generator(num_to_create)
+    factory = lambda do |x|
+      if(x % 7 == 0)
+        raise "this is bad!"
+      else
+        Desk.new(:id => x)
+      end
+    end
+    
+    lambda {
+      Desk.in_batches(g, :batch_size => batch_size, :factory => factory, :continue_on_errors => false) do |batch|
+        Desk.repository.adapter.create(batch)
+      end
+    }.should raise_error(Exception)
   end
   
 end
