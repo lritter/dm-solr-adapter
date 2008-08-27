@@ -4,8 +4,20 @@ require Pathname(__FILE__).dirname.parent.expand_path + 'lib/solr_adapter'
 
 require 'dm-types'
 require 'ostruct'
+require 'yaml'
+require 'facets/hash/symbolize_keys'
 
-DataMapper.setup(:default, Addressable::URI.parse("solr://localhost:8983/solr"))
+configuration = YAML.load(<<-END_YAML
+---
+test: &defaults
+  adapter: solr
+  host: localhost
+  port: 8983
+  index: /solr
+END_YAML
+).symbolize_keys.each{|k,v| v.symbolize_keys!}
+
+DataMapper.setup(:default, configuration[:test])
 
 class Desk
   include DataMapper::Resource

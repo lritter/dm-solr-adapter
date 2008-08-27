@@ -109,19 +109,18 @@ module DataMapper
           return uri_or_options.normalize
         end
 
-        user = uri_or_options.delete(:username)
-        password = uri_or_options.delete(:password)
+        adapter = uri_or_options.delete(:adapter)
+        user = nil
+        password = nil
         host = (uri_or_options.delete(:host) || "")
         port = uri_or_options.delete(:port)
-        database = uri_or_options.delete(:database)
-        query = uri_or_options.to_a.map { |pair| pair.join('=') }.join('&')
-        query = nil if query == ""
+        index = uri_or_options.delete(:index)
+        query = nil
 
         normalized = Addressable::URI.new(
-          "http", user, password, host, port, database, query, nil
+          adapter, user, password, host, port, index, query, nil
         )
         
-        puts normalized.inspect
         
         return normalized
       end
