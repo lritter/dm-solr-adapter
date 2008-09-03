@@ -1,5 +1,5 @@
 require 'rubygems'
-gem 'dm-core', '>=0.9.2'
+gem 'dm-core', '=0.9.3'
 require 'dm-core'
 gem 'solr-ruby', '>=0.0.6'
 require 'solr'
@@ -220,14 +220,19 @@ module DataMapper
     end
     
     def solr_type_restriction
-      "+type:#{solr_type_name}"
+      "+#{solr_type_filter}"
+    end
+    
+    def solr_type_filter
+      "type:#{solr_type_name}"
     end
     
     def search_by_solr(*args)
       repository = repository(default_repository_name)
       options = args.last.is_a?(Hash) ? args.pop : {}
       query = args.shift || ''
-      query = "#{solr_type_restriction} #{query}"
+      query << solr_type_restriction if query==''
+      options[:filter_queries] = solr_type_filter+(options[:filter_queries] ? ' AND ('+options[:filter_queries]+')' : '') 
       
       results = repository.adapter.send(:with_connection) do |connection|
         connection.query(query, options)

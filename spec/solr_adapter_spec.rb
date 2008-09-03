@@ -1,3 +1,4 @@
+gem 'dm-types', '=0.9.3'
 require 'spec'
 require 'pathname'
 require Pathname(__FILE__).dirname.parent.expand_path + 'lib/solr_adapter'
