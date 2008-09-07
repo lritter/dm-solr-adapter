@@ -25,7 +25,7 @@ DataMapper.setup(:default, configuration[:test])
 class Desk
   include DataMapper::Resource
 
-  property :id, String, :key => true
+  property :id, String, :key => true, :field => :id_s, :nullable => false
   property :content, String, :field => :content_t
   property :width, Integer, :field => :width_i
   property :created_at, DateTime, :field => :created_at_dt
@@ -39,11 +39,17 @@ class Desk
   end
 end
 
+class Pencil
+  include DataMapper::Resource
+  property :brand, String, :key => true, :field => :brand_s
+  property :composition, String, :key => true, :field => :composition_s
+end
+
 
 describe DataMapper::Adapters::SolrAdapter do
   def delete_all_desks
     DataMapper::Repository.adapters[:default].send(:with_connection) do |c|
-      c.delete_by_query("+type:desk")
+      c.delete_by_query("+_type:Desk")
     end
   end
 
@@ -52,9 +58,36 @@ describe DataMapper::Adapters::SolrAdapter do
       c.commit
     end
   end
+  
+  def generator(size)
+    Generator.new { |g|
+      for i in 1..size
+        g.yield i
+      end
+    }
+  end
 
   before :all do
     delete_all_desks
+  end
+  
+  it "should properly set the hidden type field" do
+    Pencil.new.send(:_type).should == Pencil.to_s
+  end
+  
+  it "should define hidden some hidden fields" do
+    lambda { Pencil.new.send(:_id) }.should_not raise_error
+  end
+  
+  it "the hidden id field should be the composite of the key fields" do
+    Pencil.new(:brand => 'faber', :composition => 'wood').send(:_id).should == 'faber#wood'
+  end
+  
+  it "should properly save and retrieve composite keys" do
+    Pencil.new(:brand => 'faber', :composition => 'wood').save
+    p = Pencil.get!('faber', 'wood')
+    p.key.should == ['faber', 'wood']
+    p.send(:attribute_get, :_id).should == ['faber', 'wood'].join('#')
   end
 
   it "should mark new records as such" do
@@ -84,6 +117,10 @@ describe DataMapper::Adapters::SolrAdapter do
     Desk.new(:id => 2, :content => "this is a test").save
     desk = Desk.get(2)
     desk.score.should > 0
+  end
+  
+  it "should not allow the creation of a record with a null key if the key is not nullable" do
+    Desk.new.save.should_not be(true)
   end
   
   it "should destroy a record" do
@@ -275,14 +312,6 @@ describe DataMapper::Adapters::SolrAdapter do
     end
   end
   
-  def generator(size)
-    Generator.new { |g|
-      for i in 1..size
-        g.yield i
-      end
-    }
-  end
-  
   it "should allow the creation of many records in batches" do
     delete_all_desks
     num_to_create = 23
@@ -292,7 +321,7 @@ describe DataMapper::Adapters::SolrAdapter do
     Desk.create_many(g, :batch_size => batch_size) {|x| Desk.new(:id => x)}
     Desk.all.size.should == num_to_create
   end
-
+  
   it "should perform the right number of operation for batched requests" do
     num_to_create = 23
     batch_size = 3
@@ -303,7 +332,7 @@ describe DataMapper::Adapters::SolrAdapter do
     end
   end
   
-  it "should return items that were caused batches to fail" do
+  it "should return items that caused batches to fail" do
     num_to_create = 23
     batch_size = 3
     g = generator(num_to_create)
@@ -321,7 +350,7 @@ describe DataMapper::Adapters::SolrAdapter do
     
     bad_records.size.should == num_to_create/7
   end
-  
+
   it "should raise exceptions in batch operations if told to do so" do
     num_to_create = 23
     batch_size = 3

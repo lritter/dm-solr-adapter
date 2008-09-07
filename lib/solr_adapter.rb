@@ -1,6 +1,10 @@
 require 'rubygems'
 gem 'dm-core', '=0.9.3'
 require 'dm-core'
+# 
+# gem 'dm-validations', '=0.9.3'
+# require 'dm-validations'
+
 gem 'solr-ruby', '>=0.0.6'
 require 'solr'
 
@@ -9,9 +13,11 @@ require 'solr'
 
 module DataMapper
   module Resource
+    
     def to_solr_document(dirty=false)
       property_list = self.class.properties.select { |key, value| dirty ? self.dirty_attributes.key?(key) : true }
-      inferred_fields = {:type => solr_type_name}
+      inferred_fields = {properties[:_type].field => solr_type_name}
+      inferred_fields.merge!(properties[:_id].field => _id) if _id
       return Solr::Document.new(property_list.inject(inferred_fields) do |accumulator, property|
         if(value = attribute_get(property.name))
           cast_value = value
@@ -23,8 +29,6 @@ module DataMapper
             cast_value = value.strftime('%Y-%m-%dT%H:%M:%SZ')
           end
           
-          # puts "Cast #{property.name}:#{property.type} from '#{value.inspect}' to '#{cast_value.inspect}'"
-          
           accumulator[property.field] = cast_value
         end
         accumulator
@@ -33,7 +37,7 @@ module DataMapper
     
     protected
     def solr_type_name
-      self.class.name.downcase
+      model.solr_type_name
     end
   end
 
@@ -127,9 +131,9 @@ module DataMapper
       # (lritter 27/08/2008 13:39): will only return up to 100000 records...
       # it does not seem possible to tell solr to return all records.      
       def build_request(query, options={})
-        # puts query.inspect
+        # puts "QUERY: #{query.inspect}"
         query_fragments = []
-        query_fragments << "+type:#{query.model.name.downcase}" # (lritter 13/08/2008 09:54): This should be be factored into a method
+        query_fragments << query.model.solr_type_restriction
         
         options.merge!(:rows => (query.limit || 100000))
         options.merge!(:start => query.offset) if query.offset
@@ -154,7 +158,9 @@ module DataMapper
   
         options.merge!(:sort => order_fragments) unless order_fragments.empty?
       
-        [query_fragments.join(' '), options]
+        generated_stuff = [query_fragments.join(' '), options]
+        # puts "Generated: #{generated_stuff.inspect}"
+        generated_stuff
       end
       
       def format_value_for_conditions(operator, property, value)
@@ -215,8 +221,30 @@ module DataMapper
   end
 
   module Model
+    
+    module PhantomProperties
+      def self.extended(base)
+        base.class_eval <<-END
+          property :_id, String, :nullable => false, :accessor => :private
+          property :_type, String, :nullable => false, :accessor => :private, :default => '#{base}'
+          
+          def _id
+            modified_keys = key_properties.map do |p|
+              val = p.get(self)
+              if val.nil?
+                val = p.nullable? ? '' : nil
+              end
+              val
+            end.compact
+            modified_keys.join('#') unless modified_keys.empty?
+          end
+        END
+      end
+    end
+    append_extensions PhantomProperties
+    
     def solr_type_name
-      name.downcase
+      name
     end
     
     def solr_type_restriction
@@ -224,7 +252,7 @@ module DataMapper
     end
     
     def solr_type_filter
-      "type:#{solr_type_name}"
+      "#{properties[:_type].field.to_s}:#{solr_type_name}"
     end
     
     def search_by_solr(*args)
